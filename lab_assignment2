@@ -1,0 +1,220 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "id": "c49afeda-944c-4be6-b690-e4bcf46c5a98",
+   "metadata": {},
+   "source": [
+    "YASMINE (IS01082525)\n",
+    "IMRAN WONG (IS01082642)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "id": "6af0981e-efba-430b-b78b-acb04e21a70d",
+   "metadata": {
+    "editable": true,
+    "slideshow": {
+     "slide_type": ""
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Requirement already satisfied: vaderSentiment in /Applications/anaconda3/lib/python3.12/site-packages (3.3.2)\n",
+      "Requirement already satisfied: requests in /Applications/anaconda3/lib/python3.12/site-packages (from vaderSentiment) (2.32.3)\n",
+      "Requirement already satisfied: charset-normalizer<4,>=2 in /Applications/anaconda3/lib/python3.12/site-packages (from requests->vaderSentiment) (3.3.2)\n",
+      "Requirement already satisfied: idna<4,>=2.5 in /Applications/anaconda3/lib/python3.12/site-packages (from requests->vaderSentiment) (3.7)\n",
+      "Requirement already satisfied: urllib3<3,>=1.21.1 in /Applications/anaconda3/lib/python3.12/site-packages (from requests->vaderSentiment) (2.2.3)\n",
+      "Requirement already satisfied: certifi>=2017.4.17 in /Applications/anaconda3/lib/python3.12/site-packages (from requests->vaderSentiment) (2025.1.31)\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "[nltk_data] Downloading package stopwords to\n",
+      "[nltk_data]     /Users/yasmineessam/nltk_data...\n",
+      "[nltk_data]   Package stopwords is already up-to-date!\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "VADER Sentiment Analysis Report:\n",
+      "              precision    recall  f1-score   support\n",
+      "\n",
+      "    negative       0.59      0.40      0.47     82037\n",
+      "     neutral       0.14      0.04      0.06     42640\n",
+      "    positive       0.84      0.95      0.89    443777\n",
+      "\n",
+      "    accuracy                           0.80    568454\n",
+      "   macro avg       0.52      0.46      0.48    568454\n",
+      "weighted avg       0.75      0.80      0.77    568454\n",
+      "\n",
+      "Logistic Regression Sentiment Analysis Report:\n",
+      "              precision    recall  f1-score   support\n",
+      "\n",
+      "    negative       0.73      0.66      0.69     16181\n",
+      "     neutral       0.51      0.18      0.26      8485\n",
+      "    positive       0.90      0.97      0.93     89025\n",
+      "\n",
+      "    accuracy                           0.86    113691\n",
+      "   macro avg       0.71      0.60      0.63    113691\n",
+      "weighted avg       0.84      0.86      0.85    113691\n",
+      "\n"
+     ]
+    }
+   ],
+   "source": [
+    "!pip install vaderSentiment\n",
+    "\n",
+    "import pandas as pd\n",
+    "import re\n",
+    "import nltk\n",
+    "from nltk.corpus import stopwords\n",
+    "from nltk.stem import PorterStemmer\n",
+    "from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer\n",
+    "from sklearn.metrics import classification_report\n",
+    "from sklearn.feature_extraction.text import TfidfVectorizer\n",
+    "from sklearn.model_selection import train_test_split\n",
+    "from sklearn.linear_model import LogisticRegression\n",
+    "\n",
+    "nltk.download('stopwords')\n",
+    "\n",
+    "stop_words = set(stopwords.words('english'))\n",
+    "ps = PorterStemmer()\n",
+    "\n",
+    "data = pd.read_csv('Reviews.csv')[['Score', 'Text']].dropna()\n",
+    "\n",
+    "def preprocess_text(review):\n",
+    "    review = str(review).lower()\n",
+    "    review = re.sub(r'<.*?>', '', review)  # Remove HTML tags\n",
+    "    review = re.sub(r'http\\S+|www\\S+|https\\S+', '', review)  # Remove URLs\n",
+    "    review = re.sub(r'\\d+', '', review)  # Remove digits\n",
+    "    review = re.sub(r'[^a-z\\s]', '', review)  # Remove special characters\n",
+    "    words = review.split()\n",
+    "    words = [ps.stem(word) for word in words if word not in stop_words]\n",
+    "    return ' '.join(words)\n",
+    "\n",
+    "data['cleaned_review'] = data['Text'].apply(preprocess_text)\n",
+    "\n",
+    "def categorize_sentiment(rating):\n",
+    "    if rating <= 2:\n",
+    "        return 'negative'\n",
+    "    elif rating == 3:\n",
+    "        return 'neutral'\n",
+    "    else:\n",
+    "        return 'positive'\n",
+    "\n",
+    "data['sentiment_label'] = data['Score'].apply(categorize_sentiment)\n",
+    "\n",
+    "analyzer = SentimentIntensityAnalyzer()\n",
+    "data['vader_score'] = data['Text'].apply(lambda x: analyzer.polarity_scores(x)['compound'])\n",
+    "\n",
+    "def classify_vader_sentiment(vader_score):\n",
+    "    if vader_score > 0.05:\n",
+    "        return 'positive'\n",
+    "    elif vader_score < -0.05:\n",
+    "        return 'negative'\n",
+    "    else:\n",
+    "        return 'neutral'\n",
+    "\n",
+    "data['vader_sentiment_label'] = data['vader_score'].apply(classify_vader_sentiment)\n",
+    "\n",
+    "print(\"VADER Sentiment Analysis Report:\")\n",
+    "print(classification_report(data['sentiment_label'], data['vader_sentiment_label']))\n",
+    "\n",
+    "vectorizer = TfidfVectorizer(max_features=5000)\n",
+    "X = vectorizer.fit_transform(data['cleaned_review'])\n",
+    "y = data['sentiment_label']\n",
+    "\n",
+    "X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n",
+    "\n",
+    "classifier = LogisticRegression(max_iter=1000)\n",
+    "classifier.fit(X_train, y_train)\n",
+    "\n",
+    "y_pred = classifier.predict(X_test)\n",
+    "print(\"Logistic Regression Sentiment Analysis Report:\")\n",
+    "print(classification_report(y_test, y_pred))\n",
+    "\n",
+    "data.to_csv('Processed_Reviews.csv', index=False)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "aa82ebdd-51d9-463e-8f8f-43b4176d708b",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  },
+  {
+   "cell_type": "markdown",
+   "id": "0add28ef-7c58-4bb6-9929-3ac510aa2ffb",
+   "metadata": {},
+   "source": [
+    "VADER (Lexicon-based Approach)\n",
+    "Pros:\n",
+    "\n",
+    "Quick and easy: VADER is simple to use and doesn’t need any training.\n",
+    "\n",
+    "Good for informal language: It works well with short texts, slang, and emoticons.\n",
+    "\n",
+    "Handles emotions: VADER can pick up on emotional cues like :) or :(.\n",
+    "\n",
+    "Cons:\n",
+    "\n",
+    "Limited understanding: It doesn’t handle specific topics or new words well.\n",
+    "\n",
+    "Struggles with neutral text: Neutral texts can often be misclassified as positive or negative.\n",
+    "\n",
+    "False positives: Sometimes it calls neutral or negative texts positive.\n",
+    "\n",
+    "Logistic Regression (Machine Learning Approach)\n",
+    "Pros:\n",
+    "\n",
+    "Flexible: Logistic Regression can learn from data and adapt to specific topics.\n",
+    "\n",
+    "More accurate: It often performs better than VADER for positive and negative reviews.\n",
+    "\n",
+    "Works well with structured data: It’s great for datasets with clear features.\n",
+    "\n",
+    "Cons:\n",
+    "\n",
+    "Needs labeled data: It needs a lot of data to train, which can be time-consuming.\n",
+    "\n",
+    "Needs good features: The model’s success depends on how well the data is prepared.\n",
+    "\n",
+    "Hard with neutral text: Like VADER, it struggles with neutral sentiments.\n",
+    "\n"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python [conda env:base] *",
+   "language": "python",
+   "name": "conda-base-py"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.12.7"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
